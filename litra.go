@@ -1,5 +1,7 @@
 package litra
 
+import "log"
+
 type UsbProvider interface {
     Start()
 	SendBytesToDevice(uint64, [20]byte)
@@ -17,6 +19,7 @@ type Litra struct {
    usbProvider UsbProvider
    onDevice func(Device)
    onLightState func(LightState)
+   deviceMap map[uint64]struct{}
 }
 
 func (l *Litra) Start(
@@ -24,6 +27,8 @@ func (l *Litra) Start(
     onDevice func(Device),
     onLightState func(LightState),
 ) {
+    l.deviceMap = make(map[uint64]struct{})
+
     if (onDevice == nil) {
         l.onDevice = func(_ Device) {}
     } else {
@@ -38,9 +43,12 @@ func (l *Litra) Start(
 
     usbProvider.Start()
     usbProvider.SetOnDeviceConnect(func(id uint64) {
+        l.deviceMap[id]=struct{}{}
+        log.Print(l.deviceMap)
         l.onDevice(Device{id, true})
     })
     usbProvider.SetOnDeviceDisconnect(func(id uint64) {
+        delete(l.deviceMap, id)
         l.onDevice(Device{id, false})
     })
     usbProvider.SetOnBytesFromDevice(func(id uint64, bytes [6]byte) {
@@ -55,5 +63,13 @@ func (l *Litra) Start(
 func (l *Litra) Request(s LightState) {
     for _, bytes := range bytesFromLightState(s) {
         l.usbProvider.SendBytesToDevice(s.Id, bytes)
+    }
+    if (s.Id == 0) {
+        for id, _ := range l.deviceMap {
+            s.Id = id
+            l.onLightState(s)
+        }
+    } else {
+        l.onLightState(s)
     }
 }
