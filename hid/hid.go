@@ -12,7 +12,7 @@ import "C"
 
 import (
     "time"
-//     "log"
+    "log"
 )
 
 const DEVICE_DETECT_MS = 500
@@ -24,27 +24,53 @@ const PREFIX_1 = 0x11
 const PREFIX_2 = 0xff
 const PREFIX_3 = 0x04
 
-
-var nextDeviceId uint64
-
-type ReadBytes struct {
+type ReadMessage struct {
     Id uint64
     Data [6]byte
 }
 
+type WriteMessage struct {
+    Id uint64
+    Data [20]byte
+}
+
+//
+// func Send (message WriteMessage) {
+//     Init()
+//
+//     for id, WriteMessageCh := range(deviceWriteChannels) {
+//         if (message.Id == 0) || (message.Id == id) {
+//             WriteMessageCh <- message.Data
+//         }
+//     }
+// }
+
 func StartListening(
     deviceConnectCh chan uint64,
     deviceDisconnectCh chan uint64,
-    lightStateCh chan ReadBytes,
+    readMessageCh chan ReadMessage,
+    writeMessageCh chan WriteMessage,
 ) {
-
-    C.hid_init()
-
-    nextDeviceId = uint64(1) // 0 is reserved
+    nextDeviceId := uint64(1) // 0 is reserved
     connectedDevices := make(map[string]uint64)
+    deviceWriteChannels := make(map[uint64]chan [20]byte)
 
-    // listening loop
+    // write dispatcher
     go func() {
+        for {
+            message := <-writeMessageCh
+
+            for id, deviceWriteMessageCh := range(deviceWriteChannels) {
+                if (message.Id == 0) || (message.Id == id) {
+                   deviceWriteMessageCh <- message.Data
+                }
+            }
+        }
+    }()
+
+    // per-device loop
+    go func() {
+
         for {
             firstDevice := C.hid_enumerate(C.ushort(VENDOR_ID), C.ushort(PRODUCT_ID))
 
@@ -55,25 +81,33 @@ func StartListening(
                     id = nextDeviceId
                     nextDeviceId++
                     connectedDevices[path] = id
+                    deviceWriteChannels[id] = make(chan [20]byte)
                     deviceConnectCh <- id
+
+                    device := C.hid_open_path(C.CString(path))
+
+                    go func() {
+                        for {
+                            bytes := <-deviceWriteChannels[id]
+
+                            if (device == nil) || 20 != int(C.hid_write(device, (*C.uchar)(&bytes[0]), C.size_t(len(bytes)))) {
+                                log.Print("Write error")
+                            }
+                        }
+                    }()
 
                     go func() {
                         for {
                             out := [6]byte{}
 
-                            device := C.hid_open_path(C.CString(path))
-
                             if (device == nil) || (-1 == C.hid_read(device, (*C.uchar)(&out[0]), C.size_t(len(out)))) {
                                 deviceDisconnectCh <- connectedDevices[path]
                                 delete(connectedDevices, path)
+                                delete(deviceWriteChannels, id)
                                 return
                             }
 
-                            if device != nil {
-                                C.hid_close(device)
-                            }
-
-                            lightStateCh <- ReadBytes{id, out}
+                            readMessageCh <- ReadMessage{id, out}
                         }
                     }()
                 }

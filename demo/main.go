@@ -3,13 +3,18 @@ package main
 import (
     "github.com/ciarancmnulty/litra-go"
     "log"
-//     "time"
+    "time"
 )
 
 func main() {
-     litra.Start(logDeviceStatus, logLightState)
+    litra.Start(logDeviceStatus, logLightState)
 
-     for{}
+    for {
+        time.Sleep(time.Second)
+        litra.Request(litra.NewLightState(litra.ALL_LIGHTS, true, 0x10, 5000))
+        time.Sleep(time.Second)
+        litra.Request(litra.NewLightState(litra.ALL_LIGHTS, false, 0x10, 5000))
+    }
 }
 
 func logDeviceStatus (status litra.Device) {
