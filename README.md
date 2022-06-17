@@ -30,7 +30,7 @@ onDeviceStatus := func(status Device) {
     }
 }
 
-litra.Start(onDeviceStatus, nil)
+litra.Start(&litra.HidUsbProvider{}, onDeviceStatus, nil)
 ```
 
 If clients are expecting multiple lights to be in use, it's their responsibility to track the state of which are connected
@@ -85,7 +85,7 @@ onLightState := func(status LightState) {
     status.ApplyState(updatePower, updateBrightness, updateTemperature)
 }
 
-litra.Start(nil, onLightState)
+litra.Start(&litra.HidUsbProvider{}, nil, onLightState)
 ```
 
 It's possible to receive a status update before the connect message if buttons are being pressed as it's plugged in.
@@ -101,7 +101,7 @@ and doesn't need to be provided unless you need to address individual lights.
 Convenience setters allow the raw values to be passed without worrying about pointers:
 
 ```golang
-litra.Start(nil, nil)
+litra.Start(&litra.HidUsbProvider{}, nil, nil)
 
 s := litra.LightState{}
 s.SetPower(true)

@@ -2,11 +2,6 @@ package litra
 
 const ALL_LIGHTS=0
 
-type Device struct {
-    Id uint64
-    Connected bool
-}
-
 type Power struct {
     Value bool
 }

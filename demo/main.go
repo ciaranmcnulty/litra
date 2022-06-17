@@ -7,13 +7,14 @@ import (
 )
 
 func main() {
-    litra.Start(logDeviceStatus, logLightState)
+    l := litra.Litra{}
+    l.Start(&litra.HidUsbProvider{}, logDeviceStatus, logLightState)
 
     for {
         time.Sleep(time.Second)
-        litra.Request(litra.NewLightState(litra.ALL_LIGHTS, true, 0x10, 5000))
+        l.Request(litra.NewLightState(litra.ALL_LIGHTS, true, 0x10, 5000))
         time.Sleep(time.Second)
-        litra.Request(litra.NewLightState(litra.ALL_LIGHTS, false, 0x10, 5000))
+        l.Request(litra.NewLightState(litra.ALL_LIGHTS, false, 0x10, 5000))
     }
 }
 

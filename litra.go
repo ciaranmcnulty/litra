@@ -1,56 +1,59 @@
 package litra
 
-import (
-    "github.com/ciarancmnulty/litra-go/hid"
-)
-
-var writeMessageCh chan hid.WriteMessage
-
-func Start(onDevice func(Device), onLight func(LightState)) {
-
-    if (onDevice == nil) {
-        onDevice = func(_ Device) {}
-    }
-
-    if (onLight == nil) {
-        onLight = func(_ LightState) {}
-    }
-
-    deviceConnectCh := make(chan uint64)
-    deviceDisConnectCh := make(chan uint64)
-    readMessageCh := make(chan hid.ReadMessage)
-    writeMessageCh = make(chan hid.WriteMessage)
-
-    go func() {
-        for {
-            select {
-                case id := <- deviceConnectCh:
-                    onDevice(Device{id, true})
-                case id := <- deviceDisConnectCh:
-                    onDevice(Device{id, false})
-                case lightStateBytes := <- readMessageCh:
-                    lightState := lightStateFromBytes(lightStateBytes.Id, lightStateBytes.Data)
-                    if lightState != nil {
-                        onLight(*lightState)
-                    }
-            }
-        }
-    }()
-
-    hid.StartListening(
-        deviceConnectCh,
-        deviceDisConnectCh,
-        readMessageCh,
-        writeMessageCh,
-    );
+type UsbProvider interface {
+    Start()
+	SendBytesToDevice(uint64, [20]byte)
+	SetOnDeviceConnect(func(uint64))
+	SetOnDeviceDisconnect(func(uint64,))
+	SetOnBytesFromDevice(func(uint64, [6]byte))
 }
 
-func Request(s LightState) {
-    if writeMessageCh == nil {
-        return
+type Device struct {
+    Id uint64
+    Connected bool
+}
+
+type Litra struct {
+   usbProvider UsbProvider
+   onDevice func(Device)
+   onLightState func(LightState)
+}
+
+func (l *Litra) Start(
+    usbProvider UsbProvider,
+    onDevice func(Device),
+    onLightState func(LightState),
+) {
+    if (onDevice == nil) {
+        l.onDevice = func(_ Device) {}
+    } else {
+        l.onDevice = onDevice
     }
 
+    if (onLightState == nil) {
+        l.onLightState = func(_ LightState) {}
+    } else {
+        l.onLightState = onLightState
+    }
+
+    usbProvider.Start()
+    usbProvider.SetOnDeviceConnect(func(id uint64) {
+        l.onDevice(Device{id, true})
+    })
+    usbProvider.SetOnDeviceDisconnect(func(id uint64) {
+        l.onDevice(Device{id, false})
+    })
+    usbProvider.SetOnBytesFromDevice(func(id uint64, bytes [6]byte) {
+        lightState := lightStateFromBytes(id, bytes)
+        if lightState != nil {
+            l.onLightState(*lightState)
+        }
+    })
+    l.usbProvider = usbProvider
+}
+
+func (l *Litra) Request(s LightState) {
     for _, bytes := range bytesFromLightState(s) {
-        writeMessageCh <- hid.WriteMessage{s.Id, bytes}
+        l.usbProvider.SendBytesToDevice(s.Id, bytes)
     }
 }

@@ -1,11 +1,11 @@
-package hid
+package litra
 
 /*
-#cgo CFLAGS: -I..//hidapi/hidapi
+#cgo CFLAGS: -I.//hidapi/hidapi
 #cgo darwin CFLAGS: -DOS_DARWIN
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework IOKit -framework AppKit
 #ifdef OS_DARWIN
-	#include "../hidapi/mac/hid.c"
+	#include "./hidapi/mac/hid.c"
 #endif
 */
 import "C"
@@ -20,10 +20,6 @@ const DEVICE_DETECT_MS = 500
 const VENDOR_ID = 1133
 const PRODUCT_ID = 51456
 
-const PREFIX_1 = 0x11
-const PREFIX_2 = 0xff
-const PREFIX_3 = 0x04
-
 type ReadMessage struct {
     Id uint64
     Data [6]byte
@@ -34,36 +30,52 @@ type WriteMessage struct {
     Data [20]byte
 }
 
-//
-// func Send (message WriteMessage) {
-//     Init()
-//
-//     for id, WriteMessageCh := range(deviceWriteChannels) {
-//         if (message.Id == 0) || (message.Id == id) {
-//             WriteMessageCh <- message.Data
-//         }
-//     }
-// }
+type HidUsbProvider struct {
+    writeMessageCh chan WriteMessage
+    onDeviceConnect func(uint64)
+    onDeviceDisconnect func(uint64)
+    onBytesFromDevice func(uint64, [6]byte)
+}
 
-func StartListening(
-    deviceConnectCh chan uint64,
-    deviceDisconnectCh chan uint64,
-    readMessageCh chan ReadMessage,
-    writeMessageCh chan WriteMessage,
-) {
+func (h *HidUsbProvider) Start() {
+    deviceConnectCh := make(chan uint64)
+    deviceDisconnectCh := make(chan uint64)
+    readMessageCh := make(chan ReadMessage)
+    h.writeMessageCh = make(chan WriteMessage)
+
     nextDeviceId := uint64(1) // 0 is reserved
     connectedDevices := make(map[string]uint64)
     deviceWriteChannels := make(map[uint64]chan [20]byte)
 
-    // write dispatcher
+    // routes writes to correct devices
     go func() {
         for {
-            message := <-writeMessageCh
+            message := <- h.writeMessageCh
 
             for id, deviceWriteMessageCh := range(deviceWriteChannels) {
                 if (message.Id == 0) || (message.Id == id) {
                    deviceWriteMessageCh <- message.Data
                 }
+            }
+        }
+    }()
+
+    // client callbacks
+    go func() {
+        for {
+            select{
+                case id := <- deviceConnectCh:
+                    if (h.onDeviceConnect != nil) {
+                        h.onDeviceConnect(id)
+                    }
+                case id := <- deviceDisconnectCh:
+                    if (h.onDeviceDisconnect != nil) {
+                        h.onDeviceDisconnect(id)
+                    }
+                case message := <- readMessageCh:
+                    if (h.onBytesFromDevice != nil) {
+                        h.onBytesFromDevice(message.Id, message.Data)
+                    }
             }
         }
     }()
@@ -117,4 +129,18 @@ func StartListening(
             time.Sleep(DEVICE_DETECT_MS * time.Millisecond)
         }
     }()
+}
+
+func (h *HidUsbProvider) SendBytesToDevice(id uint64, bytes [20]byte) {
+    h.writeMessageCh <- WriteMessage{id, bytes}
+}
+
+func (h *HidUsbProvider) SetOnDeviceConnect(f func(uint64)) {
+    h.onDeviceConnect = f
+}
+func (h *HidUsbProvider) SetOnDeviceDisconnect(f func(uint64)) {
+    h.onDeviceDisconnect = f
+}
+func (h *HidUsbProvider) SetOnBytesFromDevice(f func(uint64, [6]byte)) {
+    h.onBytesFromDevice = f
 }
