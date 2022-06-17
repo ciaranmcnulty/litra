@@ -1,7 +1,7 @@
 package main
 
 import (
-    "github.com/ciarancmnulty/litra-go"
+    "github.com/ciaranmcnulty/litra-go"
     "log"
     "time"
 )

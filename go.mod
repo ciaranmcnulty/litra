@@ -1,4 +1,4 @@
-module github.com/ciarancmnulty/litra-go
+module github.com/ciaranmcnulty/litra-go
 
 go 1.18
 
