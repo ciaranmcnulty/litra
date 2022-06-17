@@ -4,6 +4,12 @@ This is a library for interacting with Logitech Litra Glow devices
 
 It is offered with absolutely no warranty
 
+Litra uses [hidapi](https://github.com/libusb/hidapi) to integrate with HID devices
+
+## Supported platforms
+
+This has only been tested on M1 MacOS - more testing would be welconme
+
 ## Device status
 
 Litra defines a struct to receive updates on device status
