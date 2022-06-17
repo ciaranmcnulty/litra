@@ -1,9 +1,5 @@
 package litra
 
-import (
-    "log"
-)
-
 const BYTE_PREFIX_1 = 0x11
 const BYTE_PREFIX_2 = 0xff
 const BYTE_PREFIX_3 = 0x04
@@ -24,8 +20,6 @@ const OFFSET_TEMPERATURE_VALUE_LOW = 5
 func lightStateFromBytes(id uint64, bytes [6]byte) *LightState {
 
     if bytes[0] != BYTE_PREFIX_1 || bytes[1] != BYTE_PREFIX_2 || bytes[2] != BYTE_PREFIX_3 {
-        log.Print("Unhandled prefix")
-        log.Print(bytes)
         return nil
     }
 
@@ -43,8 +37,6 @@ func lightStateFromBytes(id uint64, bytes [6]byte) *LightState {
             )))
 
        default:
-            log.Print("Unhandled read message")
-            log.Print(bytes)
             return nil
     }
 

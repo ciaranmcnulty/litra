@@ -12,7 +12,6 @@ import "C"
 
 import (
     "time"
-    "log"
 )
 
 const DEVICE_DETECT_MS = 500
@@ -103,7 +102,10 @@ func (h *HidUsbProvider) Start() {
                             bytes := <-deviceWriteChannels[id]
 
                             if (device == nil) || 20 != int(C.hid_write(device, (*C.uchar)(&bytes[0]), C.size_t(len(bytes)))) {
-                                log.Print("Write error")
+                                deviceDisconnectCh <- connectedDevices[path]
+                                delete(connectedDevices, path)
+                                delete(deviceWriteChannels, id)
+                                return
                             }
                         }
                     }()
