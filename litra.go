@@ -1,7 +1,5 @@
 package litra
 
-import "log"
-
 type UsbProvider interface {
     Start()
 	SendBytesToDevice(uint64, [20]byte)
@@ -44,7 +42,6 @@ func (l *Litra) Start(
     usbProvider.Start()
     usbProvider.SetOnDeviceConnect(func(id uint64) {
         l.deviceMap[id]=struct{}{}
-        log.Print(l.deviceMap)
         l.onDevice(Device{id, true})
     })
     usbProvider.SetOnDeviceDisconnect(func(id uint64) {
